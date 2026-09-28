@@ -7,13 +7,18 @@
     color: #131722;
     background-color: #ffffff;
   }
+
+  .dark body {
+    color: #d1d4dc;
+    background-color: #131722;
+  }
 }
 
 .tabular-numbers {
   font-variant-numeric: tabular-nums;
-  font-feature-settings: "tnum";
 }
 
+/* Scrollbar invisible for clean horizontal pill list */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
@@ -22,14 +27,31 @@
   scrollbar-width: none;
 }
 
+/* Gradient CTA button matching TradingView branding */
 .tv-btn-gradient {
   background: linear-gradient(90deg, #2962FF 0%, #7645D9 100%);
   transition: opacity 0.2s ease, transform 0.15s ease;
 }
 .tv-btn-gradient:hover {
   opacity: 0.92;
-}
-.tv-btn-gradient:active {
-  transform: scale(0.98);
+  transform: translateY(-0.5px);
 }
 
+/* Live price flash animations */
+@keyframes flashGreen {
+  0% { background-color: rgba(8, 153, 129, 0.25); }
+  100% { background-color: transparent; }
+}
+
+@keyframes flashRed {
+  0% { background-color: rgba(242, 54, 69, 0.25); }
+  100% { background-color: transparent; }
+}
+
+.flash-up {
+  animation: flashGreen 1.2s ease-out;
+}
+
+.flash-down {
+  animation: flashRed 1.2s ease-out;
+}

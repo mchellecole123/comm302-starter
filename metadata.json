@@ -1,6 +1,6 @@
 {
-  "name": "TradingView Markets Portal",
-  "description": "Global financial markets dashboard tracking major indices, stocks, crypto, currencies, futures, and economic events with live charts and analytics.",
+  "name": "TradingView Markets Everywhere",
+  "description": "Global financial markets overview featuring real-time indices, stocks, crypto, forex, commodities, interactive charts, and economic calendar.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

@@ -1,72 +1,80 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Instrument } from '../types';
-import { ALL_INSTRUMENTS } from '../data/mockData';
 import { Search, X, TrendingUp, TrendingDown, ArrowRight } from 'lucide-react';
+import { MarketAsset } from '../types/market';
 
 interface SearchModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSelectInstrument: (instrument: Instrument) => void;
+  allAssets: MarketAsset[];
+  onSelectAsset: (asset: MarketAsset) => void;
 }
 
 export const SearchModal: React.FC<SearchModalProps> = ({
   isOpen,
   onClose,
-  onSelectInstrument,
+  allAssets,
+  onSelectAsset,
 }) => {
   const [query, setQuery] = useState('');
-  const [filterCategory, setFilterCategory] = useState<string>('All');
-  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [activeFilter, setActiveFilter] = useState<string>('all');
+  const [selectedIndex, setSelectedIndex] = useState<number>(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen) {
       setTimeout(() => inputRef.current?.focus(), 50);
-    } else {
-      setQuery('');
       setSelectedIndex(0);
     }
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  const filtered = allAssets.filter((asset) => {
+    const matchesFilter =
+      activeFilter === 'all' ||
+      (activeFilter === 'stocks' && asset.assetType === 'stock') ||
+      (activeFilter === 'crypto' && asset.assetType === 'crypto') ||
+      (activeFilter === 'indices' && asset.assetType === 'index') ||
+      (activeFilter === 'futures' && (asset.assetType === 'future' || asset.assetType === 'forex' || asset.assetType === 'bond'));
 
-  const categories = ['All', 'Stocks', 'Crypto', 'Indices', 'Forex', 'Futures', 'Bonds'];
-
-  const filtered = ALL_INSTRUMENTS.filter((inst) => {
-    const matchesCategory = filterCategory === 'All' || inst.category === filterCategory;
     const matchesQuery =
-      inst.symbol.toLowerCase().includes(query.toLowerCase()) ||
-      inst.name.toLowerCase().includes(query.toLowerCase()) ||
-      inst.exchange.toLowerCase().includes(query.toLowerCase());
-    return matchesCategory && matchesQuery;
+      asset.symbol.toLowerCase().includes(query.toLowerCase()) ||
+      asset.name.toLowerCase().includes(query.toLowerCase()) ||
+      asset.exchange.toLowerCase().includes(query.toLowerCase());
+
+    return matchesFilter && matchesQuery;
   });
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      onClose();
-    } else if (e.key === 'ArrowDown') {
+    if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setSelectedIndex((prev) => (prev + 1) % Math.max(filtered.length, 1));
+      setSelectedIndex((prev) => (prev < filtered.length - 1 ? prev + 1 : 0));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setSelectedIndex((prev) => (prev - 1 + filtered.length) % Math.max(filtered.length, 1));
+      setSelectedIndex((prev) => (prev > 0 ? prev - 1 : filtered.length - 1));
     } else if (e.key === 'Enter') {
       e.preventDefault();
       if (filtered[selectedIndex]) {
-        onSelectInstrument(filtered[selectedIndex]);
+        onSelectAsset(filtered[selectedIndex]);
         onClose();
       }
+    } else if (e.key === 'Escape') {
+      onClose();
     }
   };
 
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-start justify-center p-3 sm:p-4 pt-16 sm:pt-20">
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center pt-16 sm:pt-24 p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150"
+      onClick={onClose}
+    >
       <div
-        className="bg-white rounded-3xl max-w-2xl w-full border border-[#E0E3EB] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95"
+        className="bg-white dark:bg-[#1E222D] border border-[#E0E3EB] dark:border-[#2A2E39] rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl transition-colors"
+        onClick={(e) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
       >
         {/* Search Input Bar */}
-        <div className="p-4 border-b border-[#E0E3EB] flex items-center gap-3">
+        <div className="p-4 border-b border-[#E0E3EB] dark:border-[#2A2E39] flex items-center gap-3">
           <Search className="w-5 h-5 text-[#787B86] shrink-0" />
           <input
             ref={inputRef}
@@ -76,118 +84,136 @@ export const SearchModal: React.FC<SearchModalProps> = ({
               setQuery(e.target.value);
               setSelectedIndex(0);
             }}
-            placeholder="Search symbol, company, or asset (e.g. NVDA, Bitcoin, S&P 500)..."
-            className="w-full text-base bg-transparent border-none outline-none text-[#131722] placeholder-[#787B86] font-medium"
+            placeholder="Search symbol, company, currency or crypto..."
+            className="w-full text-base bg-transparent border-none outline-none text-[#131722] dark:text-white placeholder-[#787B86]"
           />
           {query && (
             <button
               onClick={() => setQuery('')}
-              className="text-[#787B86] hover:text-[#131722] p-1 rounded-full hover:bg-[#F0F3FA]"
+              className="p-1 text-[#787B86] hover:text-[#131722] dark:hover:text-white rounded"
             >
               <X className="w-4 h-4" />
             </button>
           )}
-          <kbd className="hidden sm:inline-block text-[10px] font-semibold text-[#787B86] px-1.5 py-0.5 border border-[#E0E3EB] rounded bg-[#F8F9FD]">
+          <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-semibold text-[#787B86] bg-[#F0F3FA] dark:bg-[#2A2E39] border border-[#E0E3EB] dark:border-[#2A2E39] rounded">
             ESC
           </kbd>
         </div>
 
-        {/* Category Pills */}
-        <div className="flex items-center px-4 py-2.5 border-b border-[#E0E3EB] gap-2 overflow-x-auto no-scrollbar bg-[#F8F9FD]">
-          {categories.map((cat) => (
+        {/* Filter Pills */}
+        <div className="px-4 py-2 bg-[#F8F9FD] dark:bg-[#181B24] border-b border-[#E0E3EB] dark:border-[#2A2E39] flex items-center gap-2 overflow-x-auto no-scrollbar text-xs font-semibold">
+          {[
+            { id: 'all', label: 'All' },
+            { id: 'stocks', label: 'Stocks' },
+            { id: 'crypto', label: 'Crypto' },
+            { id: 'indices', label: 'Indices' },
+            { id: 'futures', label: 'Futures & Forex' },
+          ].map((f) => (
             <button
-              key={cat}
+              key={f.id}
               onClick={() => {
-                setFilterCategory(cat);
+                setActiveFilter(f.id);
                 setSelectedIndex(0);
               }}
-              className={`px-3 py-1 text-xs font-semibold rounded-full whitespace-nowrap transition cursor-pointer ${
-                filterCategory === cat
-                  ? 'bg-[#131722] text-white shadow-xs'
-                  : 'bg-white text-[#787B86] border border-[#E0E3EB] hover:text-[#131722]'
+              className={`px-3 py-1 rounded-full transition cursor-pointer ${
+                activeFilter === f.id
+                  ? 'bg-[#131722] dark:bg-white text-white dark:text-[#131722]'
+                  : 'bg-white dark:bg-[#1E222D] text-[#787B86] hover:text-[#131722] dark:hover:text-white border border-[#E0E3EB] dark:border-[#2A2E39]'
               }`}
             >
-              {cat}
+              {f.label}
             </button>
           ))}
         </div>
 
         {/* Results List */}
-        <div className="max-h-96 overflow-y-auto divide-y divide-[#E0E3EB] p-1">
-          {filtered.length > 0 ? (
-            filtered.map((inst, idx) => {
+        <div className="max-h-[380px] overflow-y-auto divide-y divide-[#E0E3EB] dark:divide-[#2A2E39]">
+          {filtered.length === 0 ? (
+            <div className="p-8 text-center text-sm text-[#787B86]">
+              No results found for "{query}". Try searching for NVDA, Bitcoin, or S&P 500.
+            </div>
+          ) : (
+            filtered.map((item, idx) => {
               const isSelected = idx === selectedIndex;
-              const isPositive = inst.changePercent >= 0;
+              const isPos = item.changePercent >= 0;
+
               return (
                 <div
-                  key={inst.id}
+                  key={item.id}
                   onClick={() => {
-                    onSelectInstrument(inst);
+                    onSelectAsset(item);
                     onClose();
                   }}
                   onMouseEnter={() => setSelectedIndex(idx)}
-                  className={`p-3 rounded-2xl flex items-center justify-between transition cursor-pointer ${
-                    isSelected ? 'bg-[#F0F3FA]' : 'hover:bg-[#F8F9FD]'
+                  className={`p-3.5 px-4 flex items-center justify-between transition cursor-pointer ${
+                    isSelected
+                      ? 'bg-[#F0F3FA] dark:bg-[#2A2E39]'
+                      : 'hover:bg-[#F8F9FD] dark:hover:bg-[#2A2E39]/50'
                   }`}
                 >
                   <div className="flex items-center gap-3">
                     <div
-                      className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-xs shrink-0 shadow-xs"
-                      style={{ backgroundColor: inst.badgeBg || '#131722' }}
+                      style={{
+                        background: item.badge.bg,
+                        color: item.badge.textColor,
+                      }}
+                      className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs shrink-0"
                     >
-                      {inst.badgeLabel || inst.symbol.charAt(0)}
+                      {item.badge.text}
                     </div>
                     <div>
-                      <div className="flex items-center gap-1.5 font-bold text-sm text-[#131722]">
-                        <span>{inst.symbol}</span>
-                        <span className="text-[10px] text-[#787B86] border border-[#E0E3EB] px-1 rounded font-normal">
-                          {inst.exchange}
+                      <div className="font-bold text-[#131722] dark:text-white flex items-center gap-2 text-sm">
+                        {item.symbol}
+                        <span className="text-[10px] text-[#787B86] font-normal border border-[#E0E3EB] dark:border-[#2A2E39] px-1 rounded uppercase">
+                          {item.exchange}
                         </span>
-                        <span className="text-[10px] text-[#787B86] bg-white border border-[#E0E3EB] px-1.5 rounded font-normal">
-                          {inst.category}
+                        <span className="text-[10px] font-semibold text-[#2962FF] uppercase">
+                          {item.assetType}
                         </span>
                       </div>
-                      <p className="text-xs text-[#787B86] truncate max-w-[200px] sm:max-w-xs">{inst.name}</p>
+                      <div className="text-xs text-[#787B86]">{item.name}</div>
                     </div>
                   </div>
 
                   <div className="text-right flex items-center gap-3">
                     <div>
-                      <p className="text-sm font-bold text-[#131722] tabular-numbers">
-                        {inst.price > 100
-                          ? inst.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                          : inst.price.toFixed(4)}
-                      </p>
-                      <p
+                      <div className="font-semibold text-sm tabular-numbers text-[#131722] dark:text-white">
+                        {item.price > 10
+                          ? item.price.toLocaleString('en-US', {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })
+                          : item.price.toFixed(4)}
+                      </div>
+                      <div
                         className={`text-xs font-semibold tabular-numbers flex items-center justify-end gap-0.5 ${
-                          isPositive ? 'text-[#089981]' : 'text-[#F23645]'
+                          isPos ? 'text-[#089981]' : 'text-[#F23645]'
                         }`}
                       >
-                        {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                        {isPositive ? `+${inst.changePercent.toFixed(2)}%` : `${inst.changePercent.toFixed(2)}%`}
-                      </p>
+                        {isPos ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                        {isPos ? '+' : ''}
+                        {item.changePercent.toFixed(2)}%
+                      </div>
                     </div>
-                    {isSelected && <ArrowRight className="w-4 h-4 text-[#2962FF] hidden sm:block" />}
+                    <ArrowRight className="w-4 h-4 text-[#787B86] opacity-0 group-hover:opacity-100" />
                   </div>
                 </div>
               );
             })
-          ) : (
-            <div className="p-8 text-center text-[#787B86]">
-              <p className="text-sm font-medium">No results found for "{query}"</p>
-              <p className="text-xs mt-1">Try searching for NVDA, BTC, S&P 500, or EUR/USD.</p>
-            </div>
           )}
         </div>
 
-        {/* Footer shortcuts */}
-        <div className="p-3 bg-[#F8F9FD] border-t border-[#E0E3EB] flex items-center justify-between text-[11px] text-[#787B86]">
+        {/* Modal Footer */}
+        <div className="p-3 bg-[#F8F9FD] dark:bg-[#181B24] border-t border-[#E0E3EB] dark:border-[#2A2E39] text-xs text-[#787B86] flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span><b>↑↓</b> to navigate</span>
-            <span><b>↵</b> to select</span>
-            <span><b>esc</b> to exit</span>
+            <span>
+              Use <kbd className="px-1 py-0.5 bg-white dark:bg-[#1E222D] border rounded">↑</kbd> <kbd className="px-1 py-0.5 bg-white dark:bg-[#1E222D] border rounded">↓</kbd> to navigate
+            </span>
+            <span>
+              <kbd className="px-1 py-0.5 bg-white dark:bg-[#1E222D] border rounded">Enter</kbd> to select
+            </span>
           </div>
-          <span>TradingView Global Search</span>
+          <span>{filtered.length} results</span>
         </div>
       </div>
     </div>

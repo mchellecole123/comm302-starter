@@ -3,57 +3,68 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { Navbar } from './components/Navbar';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { Header } from './components/Header';
 import { HeroSection } from './components/HeroSection';
 import { IndicesSection } from './components/IndicesSection';
 import { StocksSection } from './components/StocksSection';
-import { CryptoAndCommoditiesSection } from './components/CryptoAndCommoditiesSection';
+import { CryptoSection } from './components/CryptoSection';
+import { FuturesCurrenciesSection } from './components/FuturesCurrenciesSection';
 import { EconomicCalendarSection } from './components/EconomicCalendarSection';
 import { Footer } from './components/Footer';
-import { AssetDetailModal } from './components/AssetDetailModal';
+import { SymbolDetailModal } from './components/SymbolDetailModal';
 import { SearchModal } from './components/SearchModal';
 import { StockScreenerModal } from './components/StockScreenerModal';
 import { EconomicCalendarModal } from './components/EconomicCalendarModal';
-import { WatchlistDrawer } from './components/WatchlistDrawer';
-
-import { Category, Instrument } from './types';
+import { WatchlistSidebar } from './components/WatchlistSidebar';
+import { GetStartedModal } from './components/GetStartedModal';
 import {
-  INDICES_DATA,
+  MAJOR_INDICES,
+  SECONDARY_INDICES,
   STOCKS_DATA,
-  CRYPTO_DATA,
-  FUTURES_FOREX_DATA,
+  CRYPTO_ASSETS,
+  FUTURES_CURRENCIES_ASSETS,
   ECONOMIC_EVENTS,
-  ALL_INSTRUMENTS,
-} from './data/mockData';
+} from './data/mockMarketData';
+import { MarketAsset, MarketCategory } from './types/market';
 
 export default function App() {
-  const [activeCategory, setActiveCategory] = useState<Category>('Overview');
-  const [selectedMarketRegion, setSelectedMarketRegion] = useState<string>('Everywhere');
-  const [selectedInstrument, setSelectedInstrument] = useState<Instrument | null>(null);
+  // Theme State
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
 
-  // Modals & Panels
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [isScreenerOpen, setIsScreenerOpen] = useState(false);
-  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-  const [isWatchlistOpen, setIsWatchlistOpen] = useState(false);
+  // Market Category Navigation
+  const [activeCategory, setActiveCategory] = useState<MarketCategory>('overview');
+  const [selectedRegion, setSelectedRegion] = useState<string>('Everywhere (Global)');
 
-  // Watchlist persisted state
+  // Live Market Data State
+  const [primaryIndices, setPrimaryIndices] = useState<MarketAsset[]>(MAJOR_INDICES);
+  const [secondaryIndices, setSecondaryIndices] = useState<MarketAsset[]>(SECONDARY_INDICES);
+  const [stocksData, setStocksData] = useState<Record<string, MarketAsset[]>>(STOCKS_DATA);
+  const [cryptoAssets, setCryptoAssets] = useState<MarketAsset[]>(CRYPTO_ASSETS);
+  const [futuresCurrenciesAssets, setFuturesCurrenciesAssets] = useState<MarketAsset[]>(FUTURES_CURRENCIES_ASSETS);
+  const [economicEvents] = useState(ECONOMIC_EVENTS);
+
+  // Modals & Drawers
+  const [selectedAsset, setSelectedAsset] = useState<MarketAsset | null>(null);
+  const [searchModalOpen, setSearchModalOpen] = useState<boolean>(false);
+  const [screenerModalOpen, setScreenerModalOpen] = useState<boolean>(false);
+  const [calendarModalOpen, setCalendarModalOpen] = useState<boolean>(false);
+  const [watchlistSidebarOpen, setWatchlistSidebarOpen] = useState<boolean>(false);
+  const [getStartedModalOpen, setGetStartedModalOpen] = useState<boolean>(false);
+
+  // Live Updates Simulation
+  const [isLiveUpdating, setIsLiveUpdating] = useState<boolean>(true);
+
+  // Watchlist stored in LocalStorage
   const [watchlist, setWatchlist] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem('tv_watchlist');
-      return saved ? JSON.parse(saved) : ['NVDA', 'BTCUSD', 'AAPL'];
+      return saved ? JSON.parse(saved) : ['nvda', 'btcusd', 'spx'];
     } catch {
-      return ['NVDA', 'BTCUSD', 'AAPL'];
+      return ['nvda', 'btcusd', 'spx'];
     }
   });
 
-  const [liveUpdatesEnabled, setLiveUpdatesEnabled] = useState(true);
-  const [currentIndices, setCurrentIndices] = useState<Instrument[]>(INDICES_DATA);
-  const [currentCrypto, setCurrentCrypto] = useState<Instrument[]>(CRYPTO_DATA);
-  const [currentFutures, setCurrentFutures] = useState<Instrument[]>(FUTURES_FOREX_DATA);
-
-  // Sync watchlist to localStorage
   useEffect(() => {
     try {
       localStorage.setItem('tv_watchlist', JSON.stringify(watchlist));
@@ -62,186 +73,292 @@ export default function App() {
     }
   }, [watchlist]);
 
-  // Global hotkey Ctrl+K / Cmd+K
+  // Dark mode effect
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isDarkMode]);
+
+  // Keyboard shortcut listener for Ctrl+K / Cmd+K
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
-        setIsSearchOpen((prev) => !prev);
+        setSearchModalOpen(true);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Subtle Live Market Simulation Ticker
+  // Live tick simulation
   useEffect(() => {
-    if (!liveUpdatesEnabled) return;
+    if (!isLiveUpdating) return;
 
     const interval = setInterval(() => {
-      // Pick random asset to nudge slightly
-      const nudge = (val: number, spread = 0.0008) => {
-        const delta = (Math.random() - 0.49) * spread * val;
-        return Number((val + delta).toFixed(val > 100 ? 2 : 4));
-      };
+      // Pick a random collection to tick
+      const dice = Math.random();
 
-      setCurrentIndices((prev) =>
-        prev.map((ind) => {
-          const newPrice = nudge(ind.price, 0.0003);
-          return { ...ind, price: newPrice };
-        })
-      );
+      if (dice < 0.35) {
+        // Tick one stock
+        setStocksData((prev) => {
+          const tab = 'large-cap';
+          const items = prev[tab] || [];
+          if (!items.length) return prev;
+          const idx = Math.floor(Math.random() * items.length);
+          const item = items[idx];
+          const delta = (Math.random() - 0.49) * 0.4;
+          const newPrice = Math.max(1, item.price + delta);
+          const newChange = item.change + delta;
+          const newChangePercent = (newChange / (newPrice - newChange)) * 100;
 
-      setCurrentCrypto((prev) =>
-        prev.map((c) => {
-          const newPrice = nudge(c.price, 0.0007);
-          return { ...c, price: newPrice };
-        })
-      );
+          const updated = [...items];
+          updated[idx] = {
+            ...item,
+            price: newPrice,
+            change: newChange,
+            changePercent: newChangePercent,
+          };
+          return { ...prev, [tab]: updated };
+        });
+      } else if (dice < 0.65) {
+        // Tick crypto
+        setCryptoAssets((prev) => {
+          const idx = Math.floor(Math.random() * prev.length);
+          const item = prev[idx];
+          const pct = (Math.random() - 0.49) * 0.003;
+          const newPrice = item.price * (1 + pct);
+          const newChange = item.change + (newPrice - item.price);
+          const newChangePercent = item.changePercent + pct * 100;
 
-      setCurrentFutures((prev) =>
-        prev.map((f) => {
-          const newPrice = nudge(f.price, 0.0004);
-          return { ...f, price: newPrice };
-        })
-      );
-    }, 3200);
+          const updated = [...prev];
+          updated[idx] = {
+            ...item,
+            price: newPrice,
+            change: newChange,
+            changePercent: newChangePercent,
+          };
+          return updated;
+        });
+      } else {
+        // Tick primary indices
+        setPrimaryIndices((prev) => {
+          const idx = Math.floor(Math.random() * prev.length);
+          const item = prev[idx];
+          const delta = (Math.random() - 0.49) * 2.5;
+          const newPrice = item.price + delta;
+          const newChange = item.change + delta;
+          const newChangePercent = (newChange / (newPrice - newChange)) * 100;
+
+          const updated = [...prev];
+          updated[idx] = {
+            ...item,
+            price: newPrice,
+            change: newChange,
+            changePercent: newChangePercent,
+          };
+          return updated;
+        });
+      }
+    }, 2800);
 
     return () => clearInterval(interval);
-  }, [liveUpdatesEnabled]);
+  }, [isLiveUpdating]);
 
-  const handleToggleWatchlist = useCallback((symbol: string) => {
-    setWatchlist((prev) =>
-      prev.includes(symbol) ? prev.filter((s) => s !== symbol) : [...prev, symbol]
-    );
-  }, []);
+  // Aggregate all assets for search & screener
+  const allAssets = useMemo(() => {
+    const stockList = Object.values(stocksData).flat();
+    return [
+      ...primaryIndices,
+      ...secondaryIndices,
+      ...stockList,
+      ...cryptoAssets,
+      ...futuresCurrenciesAssets,
+    ];
+  }, [primaryIndices, secondaryIndices, stocksData, cryptoAssets, futuresCurrenciesAssets]);
 
-  // Filter or scroll to section based on category selection
-  const handleSelectCategory = (cat: Category | string) => {
-    setActiveCategory(cat as Category);
-    if (cat === 'Economy') {
-      setIsCalendarOpen(true);
-    } else if (cat === 'ETFs') {
-      setIsScreenerOpen(true);
-    } else {
-      const elementId =
-        cat === 'Indices'
-          ? 'indices-section'
-          : cat === 'Stocks'
-          ? 'stocks-section'
-          : cat === 'Crypto' || cat === 'Forex' || cat === 'Futures' || cat === 'Bonds'
-          ? 'crypto-commodities-section'
-          : null;
-      if (elementId) {
-        document.getElementById(elementId)?.scrollIntoView({ behavior: 'smooth' });
-      }
+  const uniqueAllStocks = useMemo(() => {
+    const seen = new Set<string>();
+    const list: MarketAsset[] = [];
+    Object.values(stocksData).forEach((arr) => {
+      arr.forEach((item) => {
+        if (!seen.has(item.symbol)) {
+          seen.add(item.symbol);
+          list.push(item);
+        }
+      });
+    });
+    return list;
+  }, [stocksData]);
+
+  // Watchlist full items
+  const watchlistItems = useMemo(() => {
+    return allAssets.filter((a) => watchlist.includes(a.id));
+  }, [allAssets, watchlist]);
+
+  // Handle Watchlist Toggle
+  const handleToggleWatchlist = useCallback(
+    (id: string, e?: React.MouseEvent) => {
+      if (e) e.stopPropagation();
+      setWatchlist((prev) =>
+        prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+      );
+    },
+    []
+  );
+
+  // Category select scroll / filter
+  const handleSelectCategory = (cat: MarketCategory) => {
+    setActiveCategory(cat);
+    if (cat === 'indices') {
+      document.getElementById('indices')?.scrollIntoView({ behavior: 'smooth' });
+    } else if (cat === 'stocks') {
+      document.getElementById('stocks')?.scrollIntoView({ behavior: 'smooth' });
+    } else if (cat === 'crypto') {
+      document.getElementById('crypto')?.scrollIntoView({ behavior: 'smooth' });
+    } else if (cat === 'futures' || cat === 'forex' || cat === 'bonds') {
+      document.getElementById('futures')?.scrollIntoView({ behavior: 'smooth' });
+    } else if (cat === 'economy') {
+      document.getElementById('economy')?.scrollIntoView({ behavior: 'smooth' });
     }
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-white text-[#131722] antialiased selection:bg-[#2962FF]/15 selection:text-[#2962FF]">
-      {/* Top Navigation Bar */}
-      <Navbar
-        onOpenSearch={() => setIsSearchOpen(true)}
+    <div className="bg-white dark:bg-[#131722] text-[#131722] dark:text-[#D1D4DC] min-h-screen flex flex-col antialiased transition-colors duration-200">
+      {/* Main Header */}
+      <Header
+        onOpenSearch={() => setSearchModalOpen(true)}
+        onOpenWatchlist={() => setWatchlistSidebarOpen(true)}
         watchlistCount={watchlist.length}
-        onOpenWatchlist={() => setIsWatchlistOpen(true)}
-        liveUpdatesEnabled={liveUpdatesEnabled}
-        onToggleLiveUpdates={() => setLiveUpdatesEnabled(!liveUpdatesEnabled)}
-        activeCategory={activeCategory}
-        onSelectCategory={handleSelectCategory}
+        isLiveUpdating={isLiveUpdating}
+        onToggleLive={() => setIsLiveUpdating(!isLiveUpdating)}
+        isDarkMode={isDarkMode}
+        onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
+        onOpenGetStarted={() => setGetStartedModalOpen(true)}
       />
 
-      {/* Hero Headline & Category Pills */}
+      {/* Hero Headline & Category Pill Navigation */}
       <HeroSection
         activeCategory={activeCategory}
         onSelectCategory={handleSelectCategory}
-        selectedMarketRegion={selectedMarketRegion}
-        onSelectMarketRegion={setSelectedMarketRegion}
+        selectedRegion={selectedRegion}
+        onSelectRegion={setSelectedRegion}
       />
 
       {/* Main Content Sections */}
       <main className="flex-1 max-w-[1380px] w-full mx-auto px-4 py-6 space-y-12">
         {/* Indices Section */}
-        <div id="indices-section">
+        {(activeCategory === 'overview' || activeCategory === 'indices') && (
           <IndicesSection
-            indices={currentIndices}
-            onSelectInstrument={setSelectedInstrument}
-            onViewCategory={handleSelectCategory}
+            primaryIndices={primaryIndices}
+            secondaryIndices={secondaryIndices}
+            onSelectAsset={setSelectedAsset}
+            watchlist={watchlist}
+            onToggleWatchlist={handleToggleWatchlist}
           />
-        </div>
+        )}
 
         {/* Stocks Section */}
-        <div id="stocks-section">
+        {(activeCategory === 'overview' || activeCategory === 'stocks') && (
           <StocksSection
-            onSelectInstrument={setSelectedInstrument}
-            onOpenScreener={() => setIsScreenerOpen(true)}
-            onViewCategory={handleSelectCategory}
+            stocksData={stocksData}
+            onSelectAsset={setSelectedAsset}
+            onOpenScreener={() => setScreenerModalOpen(true)}
+            watchlist={watchlist}
+            onToggleWatchlist={handleToggleWatchlist}
           />
-        </div>
+        )}
 
-        {/* Crypto & Commodities / Currencies Grid */}
-        <div id="crypto-commodities-section">
-          <CryptoAndCommoditiesSection
-            cryptoData={currentCrypto}
-            futuresForexData={currentFutures}
-            onSelectInstrument={setSelectedInstrument}
-            onViewCategory={handleSelectCategory}
-          />
-        </div>
+        {/* 2-Column Grid: Crypto & Futures/Currencies */}
+        {(activeCategory === 'overview' ||
+          activeCategory === 'crypto' ||
+          activeCategory === 'futures' ||
+          activeCategory === 'forex' ||
+          activeCategory === 'bonds') && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {(activeCategory === 'overview' || activeCategory === 'crypto') && (
+              <CryptoSection
+                cryptoAssets={cryptoAssets}
+                onSelectAsset={setSelectedAsset}
+                watchlist={watchlist}
+                onToggleWatchlist={handleToggleWatchlist}
+              />
+            )}
 
-        {/* Economic Calendar Preview */}
-        <div id="economy-section">
+            {(activeCategory === 'overview' ||
+              activeCategory === 'futures' ||
+              activeCategory === 'forex' ||
+              activeCategory === 'bonds') && (
+              <FuturesCurrenciesSection
+                assets={futuresCurrenciesAssets}
+                onSelectAsset={setSelectedAsset}
+                watchlist={watchlist}
+                onToggleWatchlist={handleToggleWatchlist}
+              />
+            )}
+          </div>
+        )}
+
+        {/* Economic Calendar Section */}
+        {(activeCategory === 'overview' || activeCategory === 'economy') && (
           <EconomicCalendarSection
-            events={ECONOMIC_EVENTS}
-            onOpenFullCalendar={() => setIsCalendarOpen(true)}
+            events={economicEvents}
+            onOpenFullCalendar={() => setCalendarModalOpen(true)}
           />
-        </div>
+        )}
       </main>
 
-      {/* Footer */}
-      <Footer
-        onOpenCategory={handleSelectCategory}
-        onOpenScreener={() => setIsScreenerOpen(true)}
-      />
+      {/* TradingView Footer */}
+      <Footer />
 
       {/* Interactive Symbol Detail Modal */}
-      {selectedInstrument && (
-        <AssetDetailModal
-          instrument={selectedInstrument}
-          onClose={() => setSelectedInstrument(null)}
-          isWatchlisted={watchlist.includes(selectedInstrument.symbol)}
-          onToggleWatchlist={handleToggleWatchlist}
-        />
-      )}
+      <SymbolDetailModal
+        asset={selectedAsset}
+        onClose={() => setSelectedAsset(null)}
+        isStarred={selectedAsset ? watchlist.includes(selectedAsset.id) : false}
+        onToggleWatchlist={(id) => handleToggleWatchlist(id)}
+      />
 
-      {/* Global Quick Search Modal (Ctrl+K) */}
+      {/* Search Modal (Ctrl+K) */}
       <SearchModal
-        isOpen={isSearchOpen}
-        onClose={() => setIsSearchOpen(false)}
-        onSelectInstrument={setSelectedInstrument}
+        isOpen={searchModalOpen}
+        onClose={() => setSearchModalOpen(false)}
+        allAssets={allAssets}
+        onSelectAsset={setSelectedAsset}
       />
 
-      {/* Full Stock Screener Modal */}
+      {/* Stock Screener Modal */}
       <StockScreenerModal
-        isOpen={isScreenerOpen}
-        onClose={() => setIsScreenerOpen(false)}
-        onSelectInstrument={setSelectedInstrument}
+        isOpen={screenerModalOpen}
+        onClose={() => setScreenerModalOpen(false)}
+        allStocks={uniqueAllStocks}
+        onSelectStock={setSelectedAsset}
       />
 
-      {/* Full Economic Calendar Modal */}
+      {/* Economic Calendar Modal */}
       <EconomicCalendarModal
-        isOpen={isCalendarOpen}
-        onClose={() => setIsCalendarOpen(false)}
+        isOpen={calendarModalOpen}
+        onClose={() => setCalendarModalOpen(false)}
+        events={economicEvents}
       />
 
-      {/* Watchlist Slide-out Drawer */}
-      <WatchlistDrawer
-        isOpen={isWatchlistOpen}
-        onClose={() => setIsWatchlistOpen(false)}
-        watchlistSymbols={watchlist}
-        allInstruments={ALL_INSTRUMENTS}
-        onSelectInstrument={setSelectedInstrument}
-        onRemoveFromWatchlist={handleToggleWatchlist}
+      {/* Watchlist Drawer */}
+      <WatchlistSidebar
+        isOpen={watchlistSidebarOpen}
+        onClose={() => setWatchlistSidebarOpen(false)}
+        watchlistItems={watchlistItems}
+        onSelectAsset={setSelectedAsset}
+        onRemoveItem={(id) => handleToggleWatchlist(id)}
+        onClearAll={() => setWatchlist([])}
+      />
+
+      {/* Get Started / Account Modal */}
+      <GetStartedModal
+        isOpen={getStartedModalOpen}
+        onClose={() => setGetStartedModalOpen(false)}
       />
     </div>
   );
