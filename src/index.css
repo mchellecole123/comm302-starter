@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    color: #131722;
+    background-color: #ffffff;
+  }
+}
+
+.tabular-numbers {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.tv-btn-gradient {
+  background: linear-gradient(90deg, #2962FF 0%, #7645D9 100%);
+  transition: opacity 0.2s ease, transform 0.15s ease;
+}
+.tv-btn-gradient:hover {
+  opacity: 0.92;
+}
+.tv-btn-gradient:active {
+  transform: scale(0.98);
+}
+
